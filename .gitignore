@@ -1,1 +1,11 @@
 *.fastq.gz
+data/
+logs/
+results/
+*.fa
+*.bwt
+*.sa
+*.pac
+*.ann
+*.amb
+nohup.out
