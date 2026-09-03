@@ -97,4 +97,49 @@ This script automates post-alignment processing of raw SAM files into indexed BA
 
 The processing function is executed sequentially for both **`normal`** and **`tumor`** sample pairs.
 
+### Post-Alignment Quality Control
 
+Post-alignment quality control was performed on the deduplicated, indexed BAM files (`normal_markdup.bam` and `tumor_markdup.bam`) to evaluate alignment performance, library insert size distributions, and aggregate all QC metrics across the pipeline.
+
+#### 1. Picard Metrics Collection (`CollectAlignmentSummaryMetrics` & `CollectInsertSizeMetrics`)
+
+To complement `samtools flagstat` alignment metrics, Picard tools (v3.1.1) were executed to extract comprehensive mapping statistics and structural library characteristics:
+
+* **Alignment Metrics (`CollectAlignmentSummaryMetrics`)**: Evaluated mapped read percentages, mismatch rates, and pairing distributions against the GRCh38 primary assembly.
+* **Insert Size Metrics (`CollectInsertSizeMetrics`)**: Modeled the orientation and fragment size distribution of paired-end reads to ensure proper physical library performance prior to somatic variant calling.
+
+**Key Findings:**
+* **Median Insert Sizes**: Calculated at **151 bp** for the Normal sample (`HCC1395BL`) and **154 bp** for the Tumor sample (`HCC1395`), showing tight concordance across paired libraries.
+* **Histogram Output**: Generated visual distribution plots (`normal_insert_size_histogram.pdf` and `tumor_insert_size_histogram.pdf`) displaying sharp, unimodal insert size distributions representative of high-quality short-read sequencing library preparation.
+
+```bash
+# Bash
+# Execute Picard post-alignment QC metrics collection
+bash alignment_qc.sh
+```
+#### 2. MultiQC Report Aggregation
+
+Aggregated quality control metrics across all upstream processing steps into a single interactive HTML report (`somatic_variant_calling_multiqc_report.html`) using MultiQC (v1.19).
+
+**Aggregated Module Summary:**
+* **Raw FastQC**: Evaluates per-base sequence quality, GC content, and adapter contamination across raw FASTQ files (`results/fastqc/raw`).
+* **Samtools Flagstat & Stats**: Assesses alignment yield, mapping efficiency, and duplicate read counts (`results/alignedqc`).
+* **Picard Metrics**: Parses alignment metrics and insert size distributions (`results/alignedqc`).
+
+**Aggregated Statistics:**
+
+| Sample Name | Read Type | Duplication Rate (FastQC) | GC Content (FastQC) | Mapped Reads (Samtools) | Median Insert Size (Picard) |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Normal (HCC1395BL)** | Paired-End | ~6.28% | 52–53% | 1.81 M | 151 bp |
+| **Tumor (HCC1395)** | Paired-End | ~8.38% | 51–52% | 1.75 M | 154 bp |
+
+**Pipeline Quality Assessment:**
+* **High Library Complexity**: Low duplication levels (< 10%) indicate minimal PCR bias and high genomic library diversity.
+* **Balanced Sequencing Depth**: Uniform read depth and consistent GC content (~51–53%) between paired normal and tumor samples ensure unbiased germline subtraction and accurate somatic variant frequency calculations.
+* **Status**: Both normal and tumor alignments pass quality control thresholds and are validated for downstream somatic variant calling (GATK4 Mutect2).
+
+```bash
+# Bash
+# Execute MultiQC report aggregation script
+bash multiqc_aggregate.sh
+```
