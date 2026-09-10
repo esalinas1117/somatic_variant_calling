@@ -217,3 +217,44 @@ Prior to filtering the raw Mutect2 calls, estimated cross-sample DNA contaminati
 # Run contamination estimation workflow
 bash contamination_cleanup.sh
 ```
+
+## Somatic Variant Calling Re-run with a Germline Resource
+
+Re-ran GATK Mutect2 with a population germline resource (`af-only-gnomad.hg38.vcf.gz`) added to the call, so that population allele frequency (POPAF) annotations would be based on real gnomAD data instead of a flat default. This was a targeted addition rather than a full pipeline re-run: with tumor and normal derived from the same patient, the matched-normal comparison already captures most of this patient's own germline variants directly, but since both samples are shallow 1-million-read subsamples, a population resource adds useful corroborating evidence at sites the normal alone under-covers.
+
+- **Germline Resource:** `af-only-gnomad.hg38.vcf.gz` (~3.18 GB), from the same GATK Best Practices resource bucket as the panel of normals and contamination SNP panel.
+- **Script Updates:** Added `--germline-resource` to `gatk_mutect2.sh`; corrected the Java heap allocation to `-Xmx6g` (appropriate for the 8 GB EC2 instance); routed all script output (not just the GATK command) into the run log.
+- **Verification:** Confirmed via the raw VCF's own `##GATKCommandLine` header that the germline resource and panel-of-normals flags were both actually applied, not just present in the script.
+
+**Key Findings:**
+- **Raw Candidate Variants:** 176 candidate somatic variant records — unchanged from the original run, confirming the germline resource affects variant *annotation* rather than *emission*.
+- **POPAF Spot-Check:** Of the 176 candidates, 148 still received the tumor-normal-mode "not-in-resource" default (POPAF = 6.00), while the remaining ~28 received real gnomAD-derived population allele frequencies (ranging from 0.008 to 8.33) — confirming the resource was genuinely consulted at those sites.
+- **Runtime:** 48.52 minutes.
+
+**Code:**
+```bash
+# Bash
+# Re-run GATK Mutect2 with the germline resource added
+bash gatk_mutect2.sh
+```
+
+## Variant Filtering with FilterMutectCalls
+
+Filtered the raw Mutect2 calls with `FilterMutectCalls`, supplying the contamination and tumor-segmentation tables generated earlier, then compared the resulting FILTER-column breakdown against a prior run made without the germline resource to assess what the added population data changed.
+
+- **Inputs:** `mutect2_NORMAL_TUMOR_GRCh38.raw.vcf`, `contamination_NORMAL_TUMOR.table`, `segments_TUMOR.table`.
+- **Output:** Filtered somatic VCF (`mutect2_NORMAL_TUMOR_GRCh38.filtered.vcf`) with per-variant FILTER annotations and an accompanying `filteringStats.tsv`.
+
+**Key Findings:**
+- **Bottom line unchanged:** 176 total candidates and 12 `PASS` variants in both the original and germline-resource-informed runs — the germline resource did not alter the confident somatic call set.
+- **`weak_evidence` concern resolved:** the total count of variants carrying a `weak_evidence` tag was identical (151) in both runs, as expected since that filter is driven by read-support log-odds (TLOD), independent of population allele frequency. Only the *alone* count shifted (109 → 104), because 5 of those variants now also carry a `germline` tag now that gnomAD has real data at those positions — same variants, same outcome, better-explained reason.
+- **`germline` filtering improved:** germline-tagged variants rose from ~7 to 26, and in the new run every one is paired with at least one other filter reason rather than firing alone — consistent with real, corroborated evidence replacing a flat default at the ~28 gnomAD-informed sites.
+- **`contamination` tagging also rose (~15 → 31)** despite an unchanged contamination estimate (0.77%), consistent with GATK's contamination filter also weighing population allele frequency alongside the contamination table.
+
+**Code:**
+```bash
+# Bash
+# Filter the germline-resource-informed Mutect2 calls
+bash filter_calls.sh
+```
+

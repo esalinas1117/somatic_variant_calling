@@ -5,6 +5,7 @@ set -euo pipefail
 BASEDIR="$HOME/somatic_variant_calling"
 REF_FA="$BASEDIR/data/reference/GRCh38.primary_assembly.genome.fa"
 PON_VCF="$BASEDIR/data/resources/1000g_pon.hg38.vcf.gz"
+GERMLINE_RESOURCE="$BASEDIR/data/resources/af-only-gnomad.hg38.vcf.gz"
 
 # Input BAM files
 NORMAL_BAM="$BASEDIR/data/aligned/normal_markdup.bam"
@@ -25,17 +26,20 @@ mkdir -p "${LOGDIR}"
 RAW_VCF="${OUTDIR}/mutect2_${NORMAL_SAMPLE_NAME}_${TUMOR_SAMPLE_NAME}_GRCh38.raw.vcf"
 LOG_FILE="${LOGDIR}/mutect2_${NORMAL_SAMPLE_NAME}_${TUMOR_SAMPLE_NAME}.log"
 
-echo "=== Starting GATK Mutect2 Somatic Calling (Memory: 32GB) ==="
+# Route all script output (not just the gatk command) into the log file
+exec > >(tee -a "${LOG_FILE}") 2>&1
+
+echo "=== Starting GATK Mutect2 Somatic Calling (Memory: 6GB) ==="
 echo "Logging output to: ${LOG_FILE}"
 
-# Execute Mutect2 and mirror stderr/stdout to terminal and log file
-gatk --java-options "-Xmx4g" Mutect2 \ #adapt Xmx4g according to available RAM
+gatk --java-options "-Xmx6g" Mutect2 \
     --reference "${REF_FA}" \
     --input "${NORMAL_BAM}" \
     --normal-sample "${NORMAL_SAMPLE_NAME}" \
     --input "${TUMOR_BAM}" \
     --tumor-sample "${TUMOR_SAMPLE_NAME}" \
     --panel-of-normals "${PON_VCF}" \
-    --output "${RAW_VCF}" 2>&1 | tee "${LOG_FILE}"
+    --germline-resource "${GERMLINE_RESOURCE}" \
+    --output "${RAW_VCF}"
 
 echo "=== Mutect2 Calling Completed: ${RAW_VCF} ==="
