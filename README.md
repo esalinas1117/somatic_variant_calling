@@ -294,3 +294,40 @@ Removed any remaining variants overlapping low-complexity genomic regions (simpl
 # Remove variants overlapping low-complexity regions
 bash LCR_filter.sh
 ```
+
+## Variant Annotation with SnpEff (Cancer Mode)
+
+Annotated the 12 final candidate variants with predicted functional consequences (e.g. missense, nonsense, intronic) using SnpEff, run in cancer-mode to make explicit use of the tumor/normal pairing.
+
+- **Pedigree Header:** Added `##PEDIGREE=<Derived=TUMOR,Original=NORMAL>` to the VCF via `bcftools annotate --header-lines`, adapted from the course's `syn3_normal`/`syn3_tumor` example to this project's own sample names. This tells SnpEff's cancer mode that TUMOR is derived from NORMAL, enabling paired-sample-aware annotation.
+- **Database:** `hg38` (SnpEff v5.4c) — a UCSC-sourced, RefSeq-based, `chr`-prefixed build, chosen deliberately over Ensembl-style builds (bare chromosome names) and `hg38kg` (UCSC KnownGenes, a broader/less-curated transcript set) to natively match this project's GENCODE reference and stay consistent in spirit with the course's own RefSeq-based database choice.
+- **Environment:** Run via `annotation_env` (the same conda environment created for SnpSift, Java 21) using `_JAVA_OPTIONS` to set heap size, since the bioconda `snpEff` wrapper's handling of Java flags passed directly on the command line wasn't verified.
+- **Output:** Annotated VCF (`mutect2_NORMAL_TUMOR_GRCh38.snpeff.vcf`) plus HTML and CSV summary reports.
+
+**Key Findings:**
+- **Variants Annotated:** All 12 PASS/LCR-filtered candidates received functional annotations, visible in the SnpEff HTML summary report.
+
+**Code:**
+```bash
+# Bash
+# Append pedigree header and run SnpEff cancer-mode annotation
+bash snpeff_annotate.sh
+```
+
+## Variant Annotation: dbSNP Cross-Reference (SnpSift)
+
+Cross-referenced the 12 annotated variants against dbSNP to flag any that correspond to previously catalogued variants.
+
+- **Resource:** `Homo_sapiens_assembly38.dbsnp138.vcf.gz` (+ `.tbi`), from the Broad Institute's public GATK reference bucket — `chr`-prefixed, matching this project's reference without requiring contig renaming (unlike NCBI's own dbSNP VCF, which uses RefSeq accession-style contig names).
+- **Procedure:** Ran `SnpSift annotate -tabix` against the SnpEff-annotated VCF.
+- **Output:** Final annotated VCF (`mutect2_NORMAL_TUMOR_GRCh38.snpeff.dbSNP.vcf`).
+
+**Key Findings:**
+- **dbSNP Matches:** 2 of 12 candidate variants correspond to existing dbSNP entries (`rs376917408`, `rs28934578`); the remaining 10 are not catalogued in dbSNP. A dbSNP match does not by itself indicate a common/benign polymorphism — dbSNP catalogues rare and clinically significant variants as well, including recurrent cancer mutations reported across studies — so these two are not excluded from further consideration on this basis alone.
+
+**Code:**
+```bash
+# Bash
+# Cross-reference annotated variants against dbSNP
+bash snpsift_dbsnp_annotate.sh
+```
