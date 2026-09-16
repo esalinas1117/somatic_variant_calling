@@ -258,3 +258,39 @@ Filtered the raw Mutect2 calls with `FilterMutectCalls`, supplying the contamina
 bash filter_calls.sh
 ```
 
+## Variant Filtering: PASS-Only Selection (SnpSift)
+
+Narrowed the filtered VCF down to a confident somatic call set by keeping only records marked `PASS` in the FILTER column. Records carrying any other filter reason (e.g. `weak_evidence`, `germline`, `contamination`) were left in the filtered VCF untouched rather than discarded, since some — particularly the 104 `weak_evidence` calls — may reflect insufficient read support from the 1-million-read subsampling depth rather than genuine false positives; they remain available for re-evaluation in a future higher-coverage re-run rather than being permanently excluded from consideration.
+
+- **Tool:** SnpSift (SnpEff suite, v5.4c), installed in a dedicated `annotation_env` conda environment (openjdk ≥21) separate from the `variant_env` used for GATK, since the bioconda SnpEff/SnpSift builds require Java 21 while GATK requires Java 17.
+- **Input:** `mutect2_NORMAL_TUMOR_GRCh38.filtered.vcf` (176 records).
+- **Output:** PASS-only VCF (`mutect2_NORMAL_TUMOR_GRCh38.pass.vcf`).
+
+**Key Findings:**
+- **PASS Variants Retained:** 12 of 176 candidate records, consistent with the FILTER-column breakdown from the FilterMutectCalls comparison above.
+
+**Code:**
+```bash
+# Bash
+# Keep only PASS-filtered variants
+bash snpsift_pass_filter.sh
+```
+
+## Variant Filtering: Low-Complexity Region (LCR) Removal (SnpSift)
+
+Removed any remaining variants overlapping low-complexity genomic regions (simple sequence repeats), which are known to produce spurious variant calls disproportionate to their share of the genome (~2% of the genome, but ~80–90% of erroneous heterozygous indel calls in the literature this step is based on).
+
+- **Resource File:** `LCR-hs38.bed` (from `github.com/lh3/varcmp`), kept with its native `chr`-prefixed contig names to match this project's GENCODE GRCh38 primary assembly reference (unlike the base course lesson, which strips the `chr` prefix to match its own non-prefixed reference).
+- **Procedure:** Used `SnpSift intervals -x` to exclude any PASS variant overlapping an interval in the LCR BED file.
+- **Input:** `mutect2_NORMAL_TUMOR_GRCh38.pass.vcf` (12 records).
+- **Output:** Final filtered VCF (`mutect2_NORMAL_TUMOR_GRCh38.pass.no_lcr.vcf`).
+
+**Key Findings:**
+- **Variants Retained:** 12 of 12 PASS variants survived LCR filtering — none overlap a low-complexity region, indicating the final candidate set sits entirely in non-repetitive, well-behaved genomic sequence.
+
+**Code:**
+```bash
+# Bash
+# Remove variants overlapping low-complexity regions
+bash LCR_filter.sh
+```
