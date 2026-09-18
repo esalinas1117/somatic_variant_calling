@@ -354,3 +354,22 @@ Flattened the annotated, dbSNP-cross-referenced VCF into a single tabular file f
 # Flatten annotated VCF into a variant table (top annotation per variant)
 bash snpsift_extract_fields.sh
 ```
+
+## Variant Visualization with IGV
+
+Loaded the final annotated, dbSNP-cross-referenced VCF alongside the tumor and normal BAM files in IGV Desktop (v2.19.8, installed and run locally on Windows rather than via Harvard's O2/FileZilla file-transfer workflow, since this project's files already live outside that HPC environment) to visually inspect read-level support for the candidate variants.
+
+- **Genome build:** Human (GRCh38/hg38), matching the reference used throughout this pipeline.
+- **Tracks loaded:** the annotated VCF (`mutect2_NORMAL_TUMOR_GRCh38.snpeff.dbSNP.vcf`), both alignment files (`tumor_markdup.bam`, `normal_markdup.bam`), and IGV's built-in CpG Islands, GC %, and Phastcons (20 way) tracks for additional genomic context.
+- **Focus variant:** TP53 p.Arg175His (chr17:7,675,088), the pipeline's strongest candidate (see Variant Prioritization above).
+
+**Key Findings:**
+- At base-pair resolution, every tumor read overlapping chr17:7,675,088 carries the alt allele (T, highlighted red), while every normal read at the same position is reference-only (no highlighting) — a direct visual confirmation of the AD 0,10 (tumor) / 16,0 (normal) split reported by the extraction step.
+- Coverage in both BAM tracks shows a single isolated depth peak over the targeted exon rather than uniform depth across the window, the expected pattern for hybrid-capture WXS data rather than WGS.
+- Raw IGV pileup depth at the variant (tumor ~19x, normal ~21x) runs somewhat higher than Mutect2's own reported AD totals (10 and 16, respectively) — expected, since Mutect2 applies its own additional read filtering and local reassembly before computing AD, rather than a discrepancy in the underlying data.
+
+**Note:** This step was performed interactively in IGV Desktop rather than via a script. A wider-context screenshot of the locus is available at `img/TP53_snapshot.png`; the saved IGV session file was left out of this repository since it references absolute file paths local to the machine it was saved on and would not restore correctly for anyone else cloning this repo.
+
+![TP53 p.Arg175His variant in IGV](img/TP53_snapshot_zoom.png)
+
+*IGV view (62 bp window, chr17:7,675,058–7,675,118) showing tumor reads (top) uniformly carrying the T alt allele at the TP53 R175H position, and normal reads (bottom) uniformly reference at the same site.*
