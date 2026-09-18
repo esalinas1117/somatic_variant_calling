@@ -331,3 +331,26 @@ Cross-referenced the 12 annotated variants against dbSNP to flag any that corres
 # Cross-reference annotated variants against dbSNP
 bash snpsift_dbsnp_annotate.sh
 ```
+
+## Variant Prioritization: Field Extraction and Annotation Review
+
+Flattened the annotated, dbSNP-cross-referenced VCF into a single tabular file for manual review, then cross-referenced the resulting candidate genes against curated cancer driver-gene resources.
+
+- **Extraction:** Used `SnpSift extractFields` to pull CHROM/POS/REF/ALT/ID, the top (most severe) SnpEff annotation per variant (`ANN[0].*`), and per-sample allele fraction/depth (`GEN[TUMOR/NORMAL].AF`, `.AD`) into a single TSV. Chose top-annotation-only over exploding every transcript annotation (via `vcfEffOnePerLine.pl`) or comma-joining all annotations, since this variant set is small enough that one row per variant is easiest to review manually, while full multi-transcript detail remains recoverable from the annotated VCF if ever needed.
+- **Effective variant count:** 11 distinct events, not 12 — the two adjacent `TUBGCP6` records (chr22:50220941, chr22:50220944) share the same gene/transcript, nearly identical allele depths and fractions, and fall in the same codon, and are almost certainly one complex substitution that Mutect2 represented as two overlapping simple calls.
+- **Read-support pattern:** All 12 records show zero alt-supporting reads in NORMAL (`GEN[NORMAL].AD` second value = 0 across the board), consistent with clean tumor/normal separation.
+- **Impact breakdown:** 7 MODERATE (missense), 3 LOW (synonymous), 1 MODIFIER (downstream), treating the TUBGCP6 pair as one MODERATE event.
+- **Cancer driver cross-reference:** Checked the 10 non-TP53 genes against the COSMIC Cancer Gene Census and OncoKB curated driver/actionable gene lists; none are present on either list.
+
+**Key Findings:**
+- **TP53 p.Arg175His (c.524G>A, rs28934578):** chr17:7675088, TUMOR AF=0.893 (AD 0,10), NORMAL AD=16,0. This is one of the most extensively studied p53 hotspot mutations, and it is independently listed as HCC1395's own documented TP53 variant in [Cellosaurus](https://www.cellosaurus.org/CVCL_1249) (cross-referenced to ClinVar) — strong confirmation that the pipeline recovered a real, cell-line-validated mutation rather than an artifact.
+- **Elevated tumor allele fractions** (TP53 0.893, MIR4539 0.909, ZNF202 0.8, FMNL3 0.75): higher than the ~0.5 expected for a simple heterozygous somatic mutation, plausibly reflecting loss of heterozygosity or copy-number gain of the mutant allele — consistent with HCC1395's known aneuploid, copy-number-unstable genome (see the `CalculateContamination` segmentation results above, minor allele fractions 0.15–0.48).
+- **No other established driver genes:** none of OSTC, PCDHGB1, TRIB1, DDB2, ZNF202, FMNL3, MIR4539, RPRD1A, ARFGAP1, or TUBGCP6 are on the COSMIC Cancer Gene Census or OncoKB gene lists. A couple have gene-level cancer literature worth noting without over-interpreting: FMNL3 has published links to breast cancer cell migration/invasion via Twist1 regulation, though the variant found here is synonymous and would not alter the protein; DDB2 is a nucleotide-excision-repair gene (linked to xeroderma pigmentosum group E) with an emerging cancer-biology literature, though not a currently catalogued driver.
+- **Low-depth caveat:** DDB2, ZNF202, FMNL3, and ARFGAP1 are supported by only 3–5 total reads, a direct consequence of the 1M-read subsampling used for this project; these calls are lower-confidence than the others and would benefit from re-evaluation at full sequencing depth.
+
+**Code:**
+```bash
+# Bash
+# Flatten annotated VCF into a variant table (top annotation per variant)
+bash snpsift_extract_fields.sh
+```
